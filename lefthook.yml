@@ -1,0 +1,29 @@
+pre-commit:
+  parallel: true
+  commands:
+    rust-fmt:
+      glob: "**/*.rs"
+      run: cargo fmt --all -- --check
+
+    rust-clippy:
+      glob: "**/*.rs"
+      run: cargo clippy --workspace -- -D warnings
+
+    ts-typecheck:
+      glob: "sdks/ts/**/*.{ts,js}"
+      run: cd sdks/ts && bunx tsc --noEmit -p tsconfig.check.json
+
+    ts-lint:
+      glob: "sdks/ts/**/*.{ts,js}"
+      run: cd sdks/ts && bunx eslint src/ test/
+
+    ts-test:
+      glob: "sdks/ts/**/*.ts"
+      run: cd sdks/ts && bun test
+
+pre-push:
+  parallel: true
+  commands:
+    rust-test:
+      glob: "**/*.rs"
+      run: cargo test --workspace

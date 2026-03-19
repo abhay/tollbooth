@@ -1,0 +1,21 @@
+# Build
+/target
+**/dist
+
+# Database
+*.db
+*.db-journal
+
+# Secrets
+keypair.json
+.env
+
+# Dependencies
+**/node_modules
+
+# OS
+.DS_Store
+
+# Surfpool / Solana local
+.surfpool/
+/test-ledger

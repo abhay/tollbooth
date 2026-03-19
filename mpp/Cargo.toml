@@ -1,0 +1,36 @@
+[package]
+name = "spl-tollbooth-mpp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+spl-tollbooth-core = { workspace = true }
+solana-pubkey = { workspace = true }
+solana-keypair = { workspace = true }
+solana-signature = { workspace = true }
+solana-signer = { workspace = true }
+solana-transaction = { workspace = true }
+solana-message = { workspace = true }
+solana-commitment-config = { workspace = true }
+solana-client = { workspace = true }
+spl-token = { workspace = true }
+spl-associated-token-account = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+bs58 = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+solana-transaction-status = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+bincode = { workspace = true }
+libsql = { workspace = true }
+solana-native-token = { workspace = true }
+solana-system-interface = { workspace = true }
+tempfile = { workspace = true }

@@ -1,0 +1,27 @@
+[package]
+name = "spl-tollbooth-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+solana-pubkey = { workspace = true }
+solana-client = { workspace = true }
+solana-commitment-config = { workspace = true }
+solana-signature = { workspace = true }
+solana-transaction-status = { workspace = true }
+libsql = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+bs58 = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+tempfile = { workspace = true }

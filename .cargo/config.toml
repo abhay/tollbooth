@@ -1,0 +1,5 @@
+# Allow duplicate weak symbols from spl-token / solana-program-entrypoint.
+# These crates export a BPF `entrypoint` symbol that conflicts when linked
+# into test binaries on Linux (lld). macOS linkers deduplicate automatically.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]

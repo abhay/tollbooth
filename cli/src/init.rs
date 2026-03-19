@@ -1,0 +1,60 @@
+use std::path::Path;
+
+const EXAMPLE_CONFIG: &str = r#"[server]
+listen = "0.0.0.0:3402"
+upstream = "http://localhost:8080"
+# relay_url = "https://pay.example.com/relay"  # public URL for the relay endpoint
+
+[solana]
+network = "mainnet-beta"
+rpc_url = "https://api.mainnet-beta.solana.com"
+recipient = "So1anaRecipientAddress11111111111111111111111"
+mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+decimals = 6
+keypair_path = "./keypair.json"
+
+[relayer]
+mode = "builtin"
+# endpoint = "https://my-kora.example.com"  # for external mode
+# api_key = "..."                           # for external mode
+max_transfer_amount = 10000
+
+[database]
+url = "file:tollbooth.db"
+# url = "libsql://mydb-myorg.turso.io"      # Turso
+# token = "..."                             # Turso auth token
+
+[protocols]
+mpp = true
+
+[[routes]]
+path = "/api/joke"
+method = "GET"
+price = "0.001"
+mode = "charge"
+
+[[routes]]
+path = "/api/data/*"
+price = "0.01"
+mode = "session"
+deposit = "0.1"
+
+[webhooks]
+enabled = true
+url = "http://localhost:8080/webhooks/tollbooth"
+secret = "whsec_changeme"
+
+[logging]
+level = "info"
+format = "json"
+"#;
+
+pub fn run() -> anyhow::Result<()> {
+    let path = Path::new("tollbooth.toml");
+    if path.exists() {
+        anyhow::bail!("tollbooth.toml already exists in the current directory");
+    }
+    std::fs::write(path, EXAMPLE_CONFIG)?;
+    println!("Wrote tollbooth.toml. Edit it with your settings, then run `spl-tollbooth serve`.");
+    Ok(())
+}

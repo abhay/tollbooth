@@ -1,0 +1,83 @@
+[workspace]
+resolver = "2"
+members = [
+    "core",
+    "relayer",
+    "mpp",
+    "server",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/abhay/tollbooth"
+
+[workspace.dependencies]
+# Internal crates
+spl-tollbooth-core = { path = "core" }
+spl-tollbooth-relayer = { path = "relayer" }
+spl-tollbooth-mpp = { path = "mpp" }
+spl-tollbooth-server = { path = "server" }
+
+# Solana (v3.1.x individual crates — matches Agave mainnet v3.1.10)
+solana-client = "3.1"
+solana-transaction-status = "3.1"
+solana-pubkey = "3.0"
+solana-keypair = "3.1"
+solana-signature = "3.1"
+solana-signer = "3.0"
+solana-transaction = { version = "3.1", features = ["bincode"] }
+solana-message = { version = "3.1", features = ["bincode"] }
+solana-commitment-config = "3.1"
+solana-hash = "3.1"
+solana-instruction = "3.1"
+solana-native-token = "3.0"
+solana-system-interface = { version = "3.1", features = ["bincode"] }
+bincode = "1"
+spl-token = "9"
+spl-associated-token-account = "8"
+
+# Web
+axum = "0.8"
+hyper = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Database
+libsql = "0.9"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Encoding
+base64 = "0.22"
+
+# Crypto
+sha2 = "0.10"
+hmac = "0.12"
+bs58 = "0.5"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Misc
+uuid = { version = "1", features = ["v4"] }
+dashmap = "6"
+hex = "0.4"
+tempfile = "3"
