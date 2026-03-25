@@ -39,13 +39,29 @@ impl MppSession {
 
     /// Generate a session challenge.
     pub fn challenge(&self, deposit: &TokenAmount) -> MppSessionChallenge {
+        let fee_raw = self.ctx.compute_platform_fee(deposit.raw);
         MppSessionChallenge {
-            deposit: deposit.display(),
+            deposit: deposit.raw.to_string(),
+            deposit_ui_amount: deposit.display(),
             recipient: self.ctx.recipient.to_string(),
             mint: self.ctx.mint.to_string(),
             decimals: self.ctx.decimals,
             relay_url: self.ctx.relay_url.clone(),
             fee_payer: self.ctx.relayer_pubkey.map(|p| p.to_string()),
+            platform_fee: if fee_raw > 0 {
+                Some(fee_raw.to_string())
+            } else {
+                None
+            },
+            platform_fee_ui_amount: if fee_raw > 0 {
+                Some(spl_tollbooth_core::types::display_amount(
+                    fee_raw,
+                    self.ctx.decimals,
+                ))
+            } else {
+                None
+            },
+            platform_fee_recipient: self.ctx.platform_fee_recipient.map(|p| p.to_string()),
         }
     }
 
@@ -114,6 +130,11 @@ impl MppSession {
             });
         }
 
+        // Verify platform fee if configured
+        self.ctx
+            .verify_platform_fee(deposit_signature, result.amount)
+            .await?;
+
         // The client generates a random bearer secret and includes it in the Open credential.
         // We store HMAC(key, bearer) so we can verify later without storing the raw bearer.
         let bearer_hash = derive_bearer_hash(&self.bearer_key, client_bearer);
@@ -124,7 +145,8 @@ impl MppSession {
         let receipt = PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: deposit_signature.to_string(),
-            amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
+            amount: result.amount.to_string(),
+            ui_amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
             mint: self.ctx.mint.to_string(),
             payer: result.payer.to_string(),
             recipient: self.ctx.recipient.to_string(),
@@ -235,7 +257,8 @@ impl MppSession {
         Ok(PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: format!("session:{session_id}"),
-            amount: spl_tollbooth_core::types::display_amount(cost, self.ctx.decimals),
+            amount: cost.to_string(),
+            ui_amount: spl_tollbooth_core::types::display_amount(cost, self.ctx.decimals),
             mint: session.mint,
             payer: session.refund_address.clone(),
             recipient: self.ctx.recipient.to_string(),
@@ -279,7 +302,8 @@ impl MppSession {
         let receipt = PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: topup_signature.to_string(),
-            amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
+            amount: result.amount.to_string(),
+            ui_amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
             mint: self.ctx.mint.to_string(),
             payer: result.payer.to_string(),
             recipient: self.ctx.recipient.to_string(),
@@ -374,7 +398,8 @@ impl MppSession {
         Ok(PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: refund_sig_str.unwrap_or_else(|| format!("session-close:{session_id}")),
-            amount: spl_tollbooth_core::types::display_amount(refund_amount, self.ctx.decimals),
+            amount: refund_amount.to_string(),
+            ui_amount: spl_tollbooth_core::types::display_amount(refund_amount, self.ctx.decimals),
             mint: session.mint,
             payer: session.refund_address,
             recipient: self.ctx.recipient.to_string(),

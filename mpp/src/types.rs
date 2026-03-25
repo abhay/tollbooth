@@ -4,24 +4,38 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MppChallenge {
     pub amount: String,
+    pub ui_amount: String,
     pub recipient: String,
     pub mint: String,
     pub decimals: u8,
     pub relay_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee_payer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee_ui_amount: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee_recipient: Option<String>,
 }
 
 /// MPP session challenge, returned in 402 for session routes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MppSessionChallenge {
     pub deposit: String,
+    pub deposit_ui_amount: String,
     pub recipient: String,
     pub mint: String,
     pub decimals: u8,
     pub relay_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fee_payer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee_ui_amount: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform_fee_recipient: Option<String>,
 }
 
 /// MPP charge proof. Client presents this after payment.

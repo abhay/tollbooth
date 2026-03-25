@@ -37,6 +37,13 @@ price = "0.01"
 mode = "session"
 deposit = "0.1"
 
+# Optional: platform fee collected on charges and session deposits (not top-ups).
+# Total fee = amount + (custody_amount * percent / 100). Both are optional.
+# [platform_fee]
+# recipient = "YourFeeWa11et..."
+# amount = "0.005"
+# percent = 2.5
+
 [webhooks]
 enabled = true
 url = "http://localhost:8080/webhooks/tollbooth"

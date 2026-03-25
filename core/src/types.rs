@@ -139,8 +139,10 @@ impl std::fmt::Display for ProtocolKind {
 pub struct PaymentReceipt {
     pub protocol: ProtocolKind,
     pub signature: String,
-    /// Human-readable display amount (e.g. "0.001").
+    /// Amount in raw token units (e.g. "1000000").
     pub amount: String,
+    /// Display amount (e.g. "1.0").
+    pub ui_amount: String,
     pub mint: String,
     pub payer: String,
     pub recipient: String,

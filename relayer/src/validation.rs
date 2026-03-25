@@ -79,12 +79,9 @@ impl TransactionValidator {
             ));
         };
 
-        // Parse instructions to find SPL token transfer
+        // Parse instructions to find SPL token transfers
         let spl_token_id = spl_token::id();
-        let mut found_transfer = false;
-        let mut transfer_amount: u64 = 0;
-        let mut recipient = Pubkey::default();
-        let mut transfer_count: u32 = 0;
+        let mut transfers = Vec::new();
 
         for instruction in message.instructions() {
             let program_id = account_keys
@@ -99,46 +96,38 @@ impl TransactionValidator {
                     PaymentError::RelayError("invalid destination account index".into())
                 })?;
 
-                recipient = *dest_account;
-                transfer_amount = amount;
-                found_transfer = true;
-                transfer_count += 1;
+                // Enforce recipient allowlist (raw pubkeys + pre-computed ATAs).
+                if !self.allowed_destinations.is_empty()
+                    && !self.allowed_destinations.contains(dest_account)
+                {
+                    return Err(PaymentError::RelayError(format!(
+                        "recipient {} not in allowlist",
+                        dest_account
+                    )));
+                }
+
+                // Enforce max transfer amount per transfer
+                if self.max_transfer_amount > 0 && amount > self.max_transfer_amount {
+                    return Err(PaymentError::RelayError(format!(
+                        "transfer amount {amount} exceeds max_transfer_amount {}",
+                        self.max_transfer_amount
+                    )));
+                }
+
+                transfers.push(ValidatedTransfer {
+                    recipient: *dest_account,
+                    amount,
+                });
             }
         }
 
-        if !found_transfer {
+        if transfers.is_empty() {
             return Err(PaymentError::RelayError(
                 "no SPL token transfer instruction found".into(),
             ));
         }
 
-        if transfer_count > 1 {
-            return Err(PaymentError::RelayError(
-                "transaction contains multiple SPL transfers, rejected".into(),
-            ));
-        }
-
-        // Enforce recipient allowlist (raw pubkeys + pre-computed ATAs).
-        if !self.allowed_destinations.is_empty() && !self.allowed_destinations.contains(&recipient)
-        {
-            return Err(PaymentError::RelayError(format!(
-                "recipient {recipient} not in allowlist"
-            )));
-        }
-
-        // Enforce max transfer amount (cap the token amount the relayer will subsidize)
-        if transfer_amount > self.max_transfer_amount && self.max_transfer_amount > 0 {
-            return Err(PaymentError::RelayError(format!(
-                "transfer amount {transfer_amount} exceeds max_transfer_amount {}",
-                self.max_transfer_amount
-            )));
-        }
-
-        Ok(ValidationResult {
-            payer,
-            recipient,
-            amount: transfer_amount,
-        })
+        Ok(ValidationResult { payer, transfers })
     }
 }
 
@@ -146,6 +135,11 @@ impl TransactionValidator {
 #[derive(Debug)]
 pub struct ValidationResult {
     pub payer: Pubkey,
+    pub transfers: Vec<ValidatedTransfer>,
+}
+
+#[derive(Debug)]
+pub struct ValidatedTransfer {
     pub recipient: Pubkey,
     pub amount: u64,
 }
@@ -233,7 +227,9 @@ mod tests {
         let validator = TransactionValidator::new(vec![dest_ata], vec![], 10_000);
         let tx = make_transfer_tx(fee_payer, authority, source_ata, dest_ata, 1000);
         let result = validator.validate(&tx, &fee_payer).unwrap();
-        assert_eq!(result.amount, 1000);
+        assert_eq!(result.transfers.len(), 1);
+        assert_eq!(result.transfers[0].amount, 1000);
+        assert_eq!(result.transfers[0].recipient, dest_ata);
         assert_eq!(result.payer, authority);
     }
 
@@ -286,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_multiple_spl_transfers() {
+    fn reject_unlisted_recipient_in_multi_transfer() {
         let fee_payer = Pubkey::new_unique();
         let authority = Pubkey::new_unique();
         let source_ata = Pubkey::new_unique();
@@ -294,8 +290,8 @@ mod tests {
         let attacker_ata = Pubkey::new_unique();
 
         // Build a tx with two SPL transfer instructions:
-        // 1st: large transfer to attacker_ata
-        // 2nd: tiny transfer to allowed_ata (passes allowlist if only last is checked)
+        // 1st: large transfer to attacker_ata (not in allowlist — should be rejected)
+        // 2nd: tiny transfer to allowed_ata
         let mut data_big = vec![3u8]; // Transfer instruction
         data_big.extend_from_slice(&500_000u64.to_le_bytes());
 
@@ -343,12 +339,68 @@ mod tests {
         let validator = TransactionValidator::new(vec![allowed_ata], vec![], 1_000_000);
         let result = validator.validate(&tx, &fee_payer);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("multiple SPL transfers")
-        );
+        assert!(result.unwrap_err().to_string().contains("not in allowlist"));
+    }
+
+    #[test]
+    fn accept_multiple_transfers_all_allowed() {
+        let fee_payer = Pubkey::new_unique();
+        let authority = Pubkey::new_unique();
+        let source_ata = Pubkey::new_unique();
+        let dest_ata_1 = Pubkey::new_unique();
+        let dest_ata_2 = Pubkey::new_unique();
+
+        let mut data1 = vec![3u8];
+        data1.extend_from_slice(&1000u64.to_le_bytes());
+
+        let mut data2 = vec![3u8];
+        data2.extend_from_slice(&2000u64.to_le_bytes());
+
+        let accounts = vec![
+            fee_payer,       // 0: fee payer
+            authority,       // 1: token authority
+            source_ata,      // 2: source token account
+            dest_ata_1,      // 3: destination 1
+            dest_ata_2,      // 4: destination 2
+            spl_token::id(), // 5: token program
+        ];
+
+        let ix1 = CompiledInstruction {
+            program_id_index: 5,
+            accounts: vec![2, 3, 1],
+            data: data1,
+        };
+
+        let ix2 = CompiledInstruction {
+            program_id_index: 5,
+            accounts: vec![2, 4, 1],
+            data: data2,
+        };
+
+        let message = v0::Message {
+            header: MessageHeader {
+                num_required_signatures: 2,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 1,
+            },
+            recent_blockhash: Hash::new_unique(),
+            account_keys: accounts,
+            instructions: vec![ix1, ix2],
+            address_table_lookups: vec![],
+        };
+
+        let tx = VersionedTransaction {
+            signatures: vec![Default::default(); 2],
+            message: VersionedMessage::V0(message),
+        };
+
+        let validator = TransactionValidator::new(vec![dest_ata_1, dest_ata_2], vec![], 1_000_000);
+        let result = validator.validate(&tx, &fee_payer).unwrap();
+        assert_eq!(result.transfers.len(), 2);
+        assert_eq!(result.transfers[0].recipient, dest_ata_1);
+        assert_eq!(result.transfers[0].amount, 1000);
+        assert_eq!(result.transfers[1].recipient, dest_ata_2);
+        assert_eq!(result.transfers[1].amount, 2000);
     }
 
     #[test]

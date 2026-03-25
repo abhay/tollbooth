@@ -3,6 +3,7 @@ use spl_tollbooth_core::types::PaymentReceipt;
 
 pub const X_TOLLBOOTH_VERIFIED: &str = "x-tollbooth-verified";
 pub const X_TOLLBOOTH_AMOUNT: &str = "x-tollbooth-amount";
+pub const X_TOLLBOOTH_UI_AMOUNT: &str = "x-tollbooth-ui-amount";
 pub const X_TOLLBOOTH_PAYER: &str = "x-tollbooth-payer";
 pub const X_TOLLBOOTH_PROTOCOL: &str = "x-tollbooth-protocol";
 pub const X_TOLLBOOTH_SIGNATURE: &str = "x-tollbooth-signature";
@@ -29,6 +30,9 @@ pub fn inject_receipt_headers_with_event(
     }
     if let Ok(v) = HeaderValue::from_str(&receipt.amount) {
         headers.insert(HeaderName::from_static(X_TOLLBOOTH_AMOUNT), v);
+    }
+    if let Ok(v) = HeaderValue::from_str(&receipt.ui_amount) {
+        headers.insert(HeaderName::from_static(X_TOLLBOOTH_UI_AMOUNT), v);
     }
     if let Ok(v) = HeaderValue::from_str(&receipt.payer) {
         headers.insert(HeaderName::from_static(X_TOLLBOOTH_PAYER), v);
@@ -60,7 +64,8 @@ mod tests {
         PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW".into(),
-            amount: "0.001".into(),
+            amount: "1000".into(),
+            ui_amount: "0.001".into(),
             mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".into(),
             payer: "11111111111111111111111111111111".into(),
             recipient: "22222222222222222222222222222222".into(),
@@ -76,7 +81,8 @@ mod tests {
         inject_receipt_headers(&mut headers, &receipt);
 
         assert_eq!(headers.get(X_TOLLBOOTH_VERIFIED).unwrap(), "true");
-        assert_eq!(headers.get(X_TOLLBOOTH_AMOUNT).unwrap(), "0.001");
+        assert_eq!(headers.get(X_TOLLBOOTH_AMOUNT).unwrap(), "1000");
+        assert_eq!(headers.get(X_TOLLBOOTH_UI_AMOUNT).unwrap(), "0.001");
         assert_eq!(
             headers.get(X_TOLLBOOTH_PAYER).unwrap(),
             "11111111111111111111111111111111"

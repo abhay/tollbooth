@@ -1,3 +1,10 @@
+//! Configuration types for Tollbooth.
+//!
+//! **Amount convention:** TOML config uses display strings (e.g. `price = "0.001"`)
+//! for operator convenience. These are parsed to raw u64 at startup via
+//! `TokenAmount::from_display()`. Wire formats (challenges, receipts, prepare
+//! endpoint) use raw unit strings following Solana's token balance convention.
+
 use serde::Deserialize;
 
 use crate::error::ConfigError;
@@ -28,6 +35,7 @@ pub struct TollboothConfig {
     pub routes: Vec<RouteEntry>,
     pub webhooks: Option<WebhooksConfig>,
     pub logging: Option<LoggingConfig>,
+    pub platform_fee: Option<PlatformFeeConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,6 +96,15 @@ pub struct WebhooksConfig {
 pub struct LoggingConfig {
     pub level: Option<String>,
     pub format: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlatformFeeConfig {
+    pub recipient: String,
+    #[serde(default)]
+    pub amount: Option<String>,
+    #[serde(default)]
+    pub percent: Option<f64>,
 }
 
 impl TollboothConfig {

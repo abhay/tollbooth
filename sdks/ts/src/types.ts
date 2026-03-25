@@ -37,34 +37,50 @@ export interface TollboothClientConfig {
 
 /** 402 challenge body for an MPP charge flow. */
 export interface MppChallenge {
-  /** Human-readable amount (e.g. `"0.001"`). */
+  /** Raw token amount (e.g. "1000000"). */
   amount: string;
+  /** Display amount (e.g. "1.0"). */
+  ui_amount: string;
   /** Recipient public key (base58). */
   recipient: string;
   /** SPL token mint (base58). */
   mint: string;
   /** Token decimal places. */
   decimals: number;
-  /** Base URL for relay endpoints (append /prepare for server-first signing). */
+  /** Base URL for relay endpoints. */
   relay_url: string;
   /** Fee payer public key (the relayer, base58). */
   fee_payer?: string;
+  /** Platform fee in raw units. */
+  platform_fee?: string;
+  /** Platform fee display amount. */
+  platform_fee_ui_amount?: string;
+  /** Platform fee recipient (base58). */
+  platform_fee_recipient?: string;
 }
 
 /** 402 challenge body for an MPP session flow. */
 export interface MppSessionChallenge {
-  /** Deposit amount (human-readable). */
+  /** Deposit in raw units. */
   deposit: string;
+  /** Deposit display amount. */
+  deposit_ui_amount: string;
   /** Recipient public key (base58). */
   recipient: string;
   /** SPL token mint (base58). */
   mint: string;
   /** Token decimal places. */
   decimals: number;
-  /** Base URL for relay endpoints (append /prepare for server-first signing). */
+  /** Base URL for relay endpoints. */
   relay_url: string;
   /** Fee payer public key (the relayer, base58). */
   fee_payer?: string;
+  /** Platform fee in raw units. */
+  platform_fee?: string;
+  /** Platform fee display amount. */
+  platform_fee_ui_amount?: string;
+  /** Platform fee recipient (base58). */
+  platform_fee_recipient?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,8 +93,10 @@ export type ProtocolKind = "mpp";
 export interface PaymentReceipt {
   protocol: ProtocolKind;
   signature: string;
-  /** Human-readable display amount (e.g. "0.001"). */
+  /** Amount in raw token units. */
   amount: string;
+  /** Display amount. */
+  uiAmount: string;
   payer: string;
   recipient: string;
   timestamp: number;

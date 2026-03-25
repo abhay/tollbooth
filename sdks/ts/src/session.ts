@@ -8,6 +8,14 @@ import type {
 import { handleMppCharge } from "./mpp.js";
 import type { WalletLike } from "./types.js";
 
+/** Convert a display amount string to raw units string (e.g. "1.5" with 6 decimals -> "1500000"). */
+function displayToRaw(amount: string, decimals: number): string {
+  const parts = amount.split(".");
+  const whole = parts[0] || "0";
+  const frac = (parts[1] || "").padEnd(decimals, "0").slice(0, decimals);
+  return BigInt(whole + frac).toString();
+}
+
 /** Payment routing info stashed from the session challenge, needed for top-ups. */
 export interface SessionPaymentInfo {
   recipient: string;
@@ -89,10 +97,15 @@ export class TollboothSession {
       throw new Error("Session missing payment info for top-up");
     }
 
+    // Convert display amount to raw units for the prepare endpoint
+    const rawAmount = displayToRaw(amount, this.paymentInfo.decimals);
+
     // Build and relay a transfer for the top-up amount
+    // Note: top-ups do not include platform fees
     const signature = await handleMppCharge(
       {
-        amount,
+        amount: rawAmount,
+        ui_amount: amount,
         recipient: this.paymentInfo.recipient,
         mint: this.paymentInfo.mint,
         decimals: this.paymentInfo.decimals,

@@ -25,14 +25,25 @@ export async function handleMppCharge(
     throw new Error("Wallet not connected");
   }
 
+  // Build prepare request — with splits if platform fee is present
+  const body = challenge.platform_fee && challenge.platform_fee_recipient
+    ? {
+        payer: wallet.publicKey.toBase58(),
+        splits: [
+          { amount: challenge.amount, recipient: challenge.recipient },
+          { amount: challenge.platform_fee, recipient: challenge.platform_fee_recipient },
+        ],
+      }
+    : {
+        payer: wallet.publicKey.toBase58(),
+        amount: challenge.amount,
+      };
+
   // 1. Request a pre-signed transaction from the server
   const prepareRes = await fetch(`${challenge.relay_url}/prepare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      payer: wallet.publicKey.toBase58(),
-      amount: challenge.amount,
-    }),
+    body: JSON.stringify(body),
   });
   if (!prepareRes.ok) {
     const text = await prepareRes.text();
@@ -70,7 +81,7 @@ export async function handleMppSessionDeposit(
   wallet: WalletLike,
 ): Promise<string> {
   return handleMppCharge(
-    { ...challenge, amount: challenge.deposit },
+    { ...challenge, amount: challenge.deposit, ui_amount: challenge.deposit_ui_amount },
     wallet,
   );
 }

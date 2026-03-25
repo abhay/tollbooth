@@ -19,7 +19,16 @@ pub struct RelayError {
 #[derive(Deserialize)]
 pub struct PrepareRequest {
     pub payer: String,
+    #[serde(default)]
+    pub amount: Option<String>,
+    #[serde(default)]
+    pub splits: Option<Vec<SplitEntry>>,
+}
+
+#[derive(Deserialize)]
+pub struct SplitEntry {
     pub amount: String,
+    pub recipient: String,
 }
 
 /// POST /relay: accept a partially-signed transaction, validate, sign as fee payer, submit.
@@ -154,20 +163,56 @@ pub async fn prepare_handler(
         )
     })?;
 
-    // 4. Parse amount to raw u64
-    let amount = spl_tollbooth_core::types::TokenAmount::from_display(
-        &req.amount,
-        state.mint,
-        state.decimals,
-    )
-    .map_err(|e| {
-        (
+    // 4. Parse transfers: either from `splits` or from `amount` + default recipient
+    let transfers: Vec<(solana_pubkey::Pubkey, u64)> = if let Some(splits) = req.splits {
+        splits
+            .iter()
+            .map(|s| {
+                let recipient: solana_pubkey::Pubkey = s.recipient.parse().map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(RelayError {
+                            error: format!("invalid recipient pubkey: {}", s.recipient),
+                        }),
+                    )
+                })?;
+                let amount: u64 = s.amount.parse().map_err(|_| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        Json(RelayError {
+                            error: format!("invalid amount: {}", s.amount),
+                        }),
+                    )
+                })?;
+                Ok((recipient, amount))
+            })
+            .collect::<Result<Vec<_>, (StatusCode, Json<RelayError>)>>()?
+    } else if let Some(amount_str) = req.amount {
+        let amount: u64 = amount_str.parse().map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(RelayError {
+                    error: format!("invalid amount: {amount_str}"),
+                }),
+            )
+        })?;
+        let recipient = relayer.recipient().ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(RelayError {
+                    error: "no default recipient configured".into(),
+                }),
+            )
+        })?;
+        vec![(recipient, amount)]
+    } else {
+        return Err((
             StatusCode::BAD_REQUEST,
             Json(RelayError {
-                error: format!("invalid amount: {e}"),
+                error: "either 'amount' or 'splits' must be provided".into(),
             }),
-        )
-    })?;
+        ));
+    };
 
     // 5. Rate limit by payer pubkey
     let client_key = payer.to_string();
@@ -185,7 +230,7 @@ pub async fn prepare_handler(
 
     // 6. Build and sign the transaction
     let (tx_bytes, reference) = relayer
-        .prepare_transaction(&payer, amount.raw)
+        .prepare_transaction(&payer, &transfers)
         .await
         .map_err(|e| {
             tracing::warn!("prepare error: {e}");

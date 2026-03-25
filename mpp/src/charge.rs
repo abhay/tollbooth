@@ -13,13 +13,29 @@ pub struct MppCharge {
 impl MppCharge {
     /// Generate a challenge for an MPP charge request.
     pub fn challenge(&self, price: &TokenAmount) -> MppChallenge {
+        let fee_raw = self.ctx.compute_platform_fee(price.raw);
         MppChallenge {
-            amount: price.display(),
+            amount: price.raw.to_string(),
+            ui_amount: price.display(),
             recipient: self.ctx.recipient.to_string(),
             mint: self.ctx.mint.to_string(),
             decimals: self.ctx.decimals,
             relay_url: self.ctx.relay_url.clone(),
             fee_payer: self.ctx.relayer_pubkey.map(|p| p.to_string()),
+            platform_fee: if fee_raw > 0 {
+                Some(fee_raw.to_string())
+            } else {
+                None
+            },
+            platform_fee_ui_amount: if fee_raw > 0 {
+                Some(spl_tollbooth_core::types::display_amount(
+                    fee_raw,
+                    self.ctx.decimals,
+                ))
+            } else {
+                None
+            },
+            platform_fee_recipient: self.ctx.platform_fee_recipient.map(|p| p.to_string()),
         }
     }
 
@@ -58,11 +74,17 @@ impl MppCharge {
             });
         }
 
+        // Verify platform fee if configured
+        self.ctx
+            .verify_platform_fee(&proof.signature, result.amount)
+            .await?;
+
         // Build receipt
         let receipt = PaymentReceipt {
             protocol: ProtocolKind::Mpp,
             signature: proof.signature.clone(),
-            amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
+            amount: result.amount.to_string(),
+            ui_amount: spl_tollbooth_core::types::display_amount(result.amount, self.ctx.decimals),
             mint: self.ctx.mint.to_string(),
             payer: result.payer.to_string(),
             recipient: self.ctx.recipient.to_string(),

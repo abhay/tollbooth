@@ -72,7 +72,8 @@ describe("TollboothClient", () => {
 describe("MppChallenge", () => {
   test("parses a valid MPP charge challenge", () => {
     const raw = {
-      amount: "0.001",
+      amount: "1000",
+      ui_amount: "0.001",
       recipient: "So1anaRecipientAddress1111111111111111111111",
       mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       decimals: 6,
@@ -83,7 +84,8 @@ describe("MppChallenge", () => {
     // Parse as MppChallenge (simulates JSON.parse from a 402 body)
     const challenge: MppChallenge = raw;
 
-    expect(challenge.amount).toBe("0.001");
+    expect(challenge.amount).toBe("1000");
+    expect(challenge.ui_amount).toBe("0.001");
     expect(challenge.recipient).toBe(
       "So1anaRecipientAddress1111111111111111111111",
     );
@@ -97,9 +99,30 @@ describe("MppChallenge", () => {
     );
   });
 
+  test("parses challenge with platform fee fields", () => {
+    const challenge: MppChallenge = {
+      amount: "1000000",
+      ui_amount: "1.0",
+      recipient: "11111111111111111111111111111111",
+      mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      decimals: 6,
+      relay_url: "https://api.example.com/relay",
+      platform_fee: "5000",
+      platform_fee_ui_amount: "0.005",
+      platform_fee_recipient: "FeeRecipientAddress11111111111111111111111",
+    };
+
+    expect(challenge.platform_fee).toBe("5000");
+    expect(challenge.platform_fee_ui_amount).toBe("0.005");
+    expect(challenge.platform_fee_recipient).toBe(
+      "FeeRecipientAddress11111111111111111111111",
+    );
+  });
+
   test("challenge fields have correct types", () => {
     const challenge: MppChallenge = {
-      amount: "1.5",
+      amount: "1500000000",
+      ui_amount: "1.5",
       recipient: "11111111111111111111111111111111",
       mint: "11111111111111111111111111111111",
       decimals: 9,
@@ -107,6 +130,7 @@ describe("MppChallenge", () => {
     };
 
     expect(typeof challenge.amount).toBe("string");
+    expect(typeof challenge.ui_amount).toBe("string");
     expect(typeof challenge.decimals).toBe("number");
     expect(typeof challenge.relay_url).toBe("string");
   });

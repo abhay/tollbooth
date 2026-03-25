@@ -82,13 +82,20 @@ impl RelayerKind {
         }
     }
 
+    pub fn recipient(&self) -> Option<Pubkey> {
+        match self {
+            RelayerKind::Builtin(r) => Some(r.recipient()),
+            _ => None,
+        }
+    }
+
     pub async fn prepare_transaction(
         &self,
         payer: &Pubkey,
-        amount_raw: u64,
+        transfers: &[(Pubkey, u64)],
     ) -> Result<(Vec<u8>, Pubkey), PaymentError> {
         match self {
-            RelayerKind::Builtin(r) => r.prepare_transaction(payer, amount_raw).await,
+            RelayerKind::Builtin(r) => r.prepare_transaction(payer, transfers).await,
             _ => Err(PaymentError::RelayError("prepare not supported".into())),
         }
     }

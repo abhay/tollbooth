@@ -109,14 +109,37 @@ pub async fn run(config_path: &str) -> anyhow::Result<()> {
         );
     }
 
+    // Parse platform fee config
+    let (pf_recipient, pf_flat_raw, pf_percent) = if let Some(ref pf) = config.platform_fee {
+        let pf_pubkey: Pubkey = pf
+            .recipient
+            .parse()
+            .map_err(|e| anyhow::anyhow!("invalid platform_fee.recipient: {e}"))?;
+        let pf_flat = if let Some(ref amt) = pf.amount {
+            spl_tollbooth_core::types::TokenAmount::from_display(amt, mint, decimals)
+                .map_err(|e| anyhow::anyhow!("invalid platform_fee.amount: {e}"))?
+                .raw
+        } else {
+            0
+        };
+        let pf_pct = pf.percent.unwrap_or(0.0);
+        (Some(pf_pubkey), pf_flat, pf_pct)
+    } else {
+        (None, 0, 0.0)
+    };
+
     // Build relayer
     let relayer: Arc<RelayerKind> = match config.relayer.mode {
         spl_tollbooth_core::config::RelayerMode::Builtin => {
+            let mut allowed_recipients = vec![recipient];
+            if let Some(pf_pub) = pf_recipient {
+                allowed_recipients.push(pf_pub);
+            }
             let r = BuiltinRelayer::new(BuiltinRelayerConfig {
                 keypair: keypair.clone(),
                 rpc_url: config.solana.rpc_url.clone(),
                 allowed_mints: vec![mint],
-                allowed_recipients: vec![recipient],
+                allowed_recipients,
                 max_transfer_amount: config.relayer.max_transfer_amount.unwrap_or(10_000),
                 requests_per_minute: 60,
                 recipient,
@@ -176,6 +199,9 @@ pub async fn run(config_path: &str) -> anyhow::Result<()> {
                 store: store.clone(),
                 relayer_pubkey,
                 relay_url: default_relay(),
+                platform_fee_recipient: pf_recipient,
+                platform_fee_flat_raw: pf_flat_raw,
+                platform_fee_percent: pf_percent,
             },
         }))
     } else {
@@ -192,6 +218,9 @@ pub async fn run(config_path: &str) -> anyhow::Result<()> {
                 store: store.clone(),
                 relayer_pubkey,
                 relay_url: default_relay(),
+                platform_fee_recipient: pf_recipient,
+                platform_fee_flat_raw: pf_flat_raw,
+                platform_fee_percent: pf_percent,
             },
             keypair.clone(),
         )))

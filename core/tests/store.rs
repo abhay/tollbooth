@@ -7,7 +7,8 @@ fn dummy_receipt(sig: &str) -> PaymentReceipt {
     PaymentReceipt {
         protocol: ProtocolKind::Mpp,
         signature: sig.to_string(),
-        amount: "0.001".to_string(),
+        amount: "1000".to_string(),
+        ui_amount: "0.001".to_string(),
         mint: "mint1".to_string(),
         payer: "payer1".to_string(),
         recipient: "recipient1".to_string(),

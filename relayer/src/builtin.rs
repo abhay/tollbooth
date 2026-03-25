@@ -75,82 +75,98 @@ impl BuiltinRelayer {
         &self.rpc_client
     }
 
+    pub fn recipient(&self) -> Pubkey {
+        self.recipient
+    }
+
     pub fn rate_limiter(&self) -> &RateLimiter {
         &self.rate_limiter
     }
 
     /// Build and fee-payer-sign a transfer transaction for the client to counter-sign.
+    /// Accepts a list of (recipient, amount) pairs to support split payments.
     /// Returns (serialized tx bytes, reference pubkey).
     pub async fn prepare_transaction(
         &self,
         payer: &Pubkey,
-        amount_raw: u64,
+        transfers: &[(Pubkey, u64)],
     ) -> Result<(Vec<u8>, Pubkey), PaymentError> {
-        // 1. Validate amount
-        if self.validator.max_transfer_amount() > 0
-            && amount_raw > self.validator.max_transfer_amount()
-        {
-            return Err(PaymentError::RelayError(format!(
-                "amount {amount_raw} exceeds max {}",
-                self.validator.max_transfer_amount()
-            )));
+        if transfers.is_empty() {
+            return Err(PaymentError::RelayError("no transfers provided".into()));
+        }
+
+        // Validate each amount individually
+        for (recipient, amount) in transfers {
+            if self.validator.max_transfer_amount() > 0
+                && *amount > self.validator.max_transfer_amount()
+            {
+                return Err(PaymentError::RelayError(format!(
+                    "amount {amount} exceeds max {}",
+                    self.validator.max_transfer_amount()
+                )));
+            }
+            if *amount == 0 {
+                return Err(PaymentError::RelayError(format!(
+                    "zero amount for recipient {recipient}"
+                )));
+            }
         }
 
         let mint = self.allowed_mints[0];
-
-        // 2. Derive ATAs
         let sender_ata = get_associated_token_address(payer, &mint);
-        let recipient_ata = get_associated_token_address(&self.recipient, &mint);
+        let reference = Keypair::new();
 
-        // 3. Ensure recipient ATA exists (idempotent — no-op if it already exists)
-        let create_recipient_ata_ix =
-            spl_associated_token_account::instruction::create_associated_token_account_idempotent(
-                &self.keypair.pubkey(), // payer for ATA rent
-                &self.recipient,
+        // Build one create-ATA-idempotent + one transfer_checked per (recipient, amount)
+        let mut instructions = Vec::new();
+        for (recipient, amount) in transfers {
+            let recipient_ata = get_associated_token_address(recipient, &mint);
+
+            let create_ata_ix = spl_associated_token_account::instruction::create_associated_token_account_idempotent(
+                &self.keypair.pubkey(),
+                recipient,
                 &mint,
                 &spl_token::id(),
             );
+            instructions.push(create_ata_ix);
 
-        // 4. Build TransferChecked instruction
-        let mut ix = spl_token::instruction::transfer_checked(
-            &spl_token::id(),
-            &sender_ata,
-            &mint,
-            &recipient_ata,
-            payer,
-            &[],
-            amount_raw,
-            self.decimals,
-        )
-        .map_err(|e| PaymentError::RelayError(format!("build instruction: {e}")))?;
+            let transfer_ix = spl_token::instruction::transfer_checked(
+                &spl_token::id(),
+                &sender_ata,
+                &mint,
+                &recipient_ata,
+                payer,
+                &[],
+                *amount,
+                self.decimals,
+            )
+            .map_err(|e| PaymentError::RelayError(format!("build instruction: {e}")))?;
 
-        // 4. Append reference key
-        let reference = Keypair::new();
-        ix.accounts.push(AccountMeta {
+            instructions.push(transfer_ix);
+        }
+
+        // Append reference key to the LAST instruction
+        let last = instructions
+            .last_mut()
+            .expect("instructions non-empty (checked above)");
+        last.accounts.push(AccountMeta {
             pubkey: reference.pubkey(),
             is_signer: false,
             is_writable: false,
         });
 
-        // 5. Fetch blockhash
+        // Fetch blockhash
         let blockhash = self
             .rpc_client
             .get_latest_blockhash()
             .await
             .map_err(|e| PaymentError::RpcError(format!("blockhash: {e}")))?;
 
-        // 6. Compile v0 message
-        let message = v0::Message::try_compile(
-            &self.keypair.pubkey(),
-            &[create_recipient_ata_ix, ix],
-            &[],
-            blockhash,
-        )
-        .map_err(|e| PaymentError::RelayError(format!("compile message: {e}")))?;
+        // Compile v0 message
+        let message =
+            v0::Message::try_compile(&self.keypair.pubkey(), &instructions, &[], blockhash)
+                .map_err(|e| PaymentError::RelayError(format!("compile message: {e}")))?;
 
-        // 7. Create transaction with placeholder signatures, then sign fee payer slot only.
-        // try_new() requires all signers, but we only have the fee payer at this point.
-        // The client will fill in their signature after counter-signing.
+        // Create transaction with placeholder signatures, then sign fee payer slot only.
         let vm = VersionedMessage::V0(message);
         let num_signers = vm.header().num_required_signatures as usize;
         let message_bytes = vm.serialize();
@@ -162,7 +178,7 @@ impl BuiltinRelayer {
             message: vm,
         };
 
-        // 8. Serialize
+        // Serialize
         let bytes = bincode::serialize(&tx)
             .map_err(|e| PaymentError::RelayError(format!("serialize: {e}")))?;
 
@@ -261,7 +277,7 @@ mod tests {
 
         let result = tokio::runtime::Runtime::new()
             .unwrap()
-            .block_on(relayer.prepare_transaction(&payer.pubkey(), 2_000_000));
+            .block_on(relayer.prepare_transaction(&payer.pubkey(), &[(recipient, 2_000_000)]));
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(

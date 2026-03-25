@@ -38,7 +38,7 @@ sequenceDiagram
     participant S as Solana
 
     rect rgb(240, 240, 240)
-    Note over C,S: Standard MPP — client pays gas, builds tx
+    Note over C,S: Standard MPP: client pays gas, builds tx
     C->>T: GET /api/data
     T-->>C: 402 + challenge (amount, recipient, mint, reference)
 
@@ -60,7 +60,7 @@ sequenceDiagram
     participant S as Solana
 
     rect rgb(230, 245, 230)
-    Note over C,S: Tollbooth MPP — gasless, server-first signing
+    Note over C,S: Tollbooth MPP: gasless, server-first signing
     C->>T: GET /api/data
     T-->>C: 402 + challenge (amount, recipient, mint, relay_url)
 
@@ -169,7 +169,7 @@ let app = Router::new()
     .with_state(state.clone());
 ```
 
-The proxy binary (`tollbooth serve`) handles all of this automatically via `tollbooth.toml` — the middleware API is for embedding tollbooth in your own axum app.
+The proxy binary (`tollbooth serve`) handles all of this automatically via `tollbooth.toml`. The middleware API is for embedding tollbooth in your own axum app.
 
 ## Configuration
 
@@ -205,6 +205,8 @@ deposit = "0.1"
 ```
 
 One mint per deployment. Need multiple tokens? Run separate instances.
+
+**Why SPL tokens only, no native SOL:** Tollbooth's relayer pays SOL gas so users don't have to. With native SOL payments, the user's payment and the relayer's gas are the same denomination. You can't cleanly separate "user paying for a service" from "relayer subsidizing gas." SPL tokens keep these distinct: relayer spends SOL, user spends USDC. That's the whole point of gasless session payments.
 
 ## Architecture
 
@@ -274,11 +276,12 @@ bun test
 - Relay only exposes atomic sign-and-submit (no sign-without-send, prevents TOCTOU)
 - Server-first signing: server builds the transaction, client can only counter-sign (no malicious instruction injection)
 - Replay protection via UNIQUE constraint with idempotent cached receipts
-- Bearer tokens use HMAC-SHA256 keyed with server secret
-- Multi-instruction transactions rejected (prevents allowlist bypass)
+- Bearer tokens: HMAC-SHA256, keyed with server secret, client-generated random (not derivable from public data)
+- Multi-transfer transactions: every destination must be in the allowlist
+- Address lookup table transactions rejected (prevents validation bypass)
 - Webhook payloads signed with HMAC-SHA256
-- Always use HTTPS in production — the SDK trusts the relay URL and payment parameters from the 402 response
-- Built-in rate limiting is best-effort (keyed by client pubkey) — deploy an IP-level rate limiter upstream for hard enforcement
+- Use HTTPS in production. The SDK trusts the relay URL and payment parameters from the 402 response.
+- Built-in rate limiting is best-effort (per-pubkey + global cap). Deploy an IP-level limiter upstream for hard enforcement.
 
 ## License
 

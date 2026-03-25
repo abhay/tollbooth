@@ -353,6 +353,9 @@ async fn start_proxy(
             store: store.clone(),
             relayer_pubkey: Some(relayer_kp.pubkey()),
             relay_url: "http://localhost:0/relay".into(),
+            platform_fee_recipient: None,
+            platform_fee_flat_raw: 0,
+            platform_fee_percent: 0.0,
         },
     }));
 
@@ -440,6 +443,7 @@ fn make_config() -> spl_tollbooth_core::config::TollboothConfig {
         routes: vec![],
         webhooks: None,
         logging: None,
+        platform_fee: None,
     }
 }
 
