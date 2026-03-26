@@ -144,6 +144,17 @@ const session = await client.session('https://api.example.com/data');
 const page1 = await session.fetch('/data?page=1');
 const page2 = await session.fetch('/data?page=2');
 await session.close(); // triggers refund of unused balance
+
+// Persist and restore sessions (e.g., across page refreshes)
+const snapshot = session.serialize();
+localStorage.setItem('session', JSON.stringify(snapshot));
+
+// Later, after page reload:
+const saved = JSON.parse(localStorage.getItem('session')!);
+const restored = TollboothSession.restore(client, saved, wallet);
+// IMPORTANT: verify the session is still valid before trusting it
+const check = await restored.fetch('/data?page=1');
+if (!check.ok) { /* session expired or closed, start a new one */ }
 ```
 
 ## Rust Middleware
@@ -277,6 +288,7 @@ bun test
 - Server-first signing: server builds the transaction, client can only counter-sign (no malicious instruction injection)
 - Replay protection via UNIQUE constraint with idempotent cached receipts
 - Bearer tokens: HMAC-SHA256, keyed with server secret, client-generated random (not derivable from public data)
+- Session persistence (`serialize()`/`restore()`): the bearer is stored in plaintext. Treat it like any auth token in localStorage. Always verify a restored session with a server request before trusting it. Session balances are bounded by the deposit amount, limiting exposure.
 - Multi-transfer transactions: every destination must be in the allowlist
 - Address lookup table transactions rejected (prevents validation bypass)
 - Webhook payloads signed with HMAC-SHA256

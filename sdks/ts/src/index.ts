@@ -20,6 +20,7 @@ export { TollboothClient } from "./client.js";
 
 // Session
 export { TollboothSession } from "./session.js";
+export type { SessionSnapshot, SessionPaymentInfo } from "./session.js";
 
 // Protocol handlers (for advanced usage)
 export { handleMppCharge, handleMppSessionDeposit } from "./mpp.js";

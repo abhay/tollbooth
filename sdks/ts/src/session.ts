@@ -188,4 +188,44 @@ export class TollboothSession {
   get id(): string | null {
     return this.sessionId;
   }
+
+  /** Serialize session credentials for persistence (e.g., localStorage). */
+  serialize(): SessionSnapshot | null {
+    if (!this.sessionId || !this.bearer) return null;
+    return {
+      sessionId: this.sessionId,
+      bearer: this.bearer,
+      paymentInfo: this.paymentInfo ?? undefined,
+      baseUrl: this.baseUrl,
+    };
+  }
+
+  /**
+   * Restore a session from a previously serialized snapshot.
+   * Call this instead of client.session() to reconnect after a page refresh.
+   * The session is NOT verified — call fetch() on a zero-cost route to confirm
+   * the bearer is still valid before relying on it.
+   */
+  static restore(
+    client: TollboothClient,
+    snapshot: SessionSnapshot,
+    wallet?: WalletLike,
+  ): TollboothSession {
+    const s = new TollboothSession(client, snapshot.baseUrl);
+    s.setCredentials(
+      snapshot.sessionId,
+      snapshot.bearer,
+      snapshot.paymentInfo,
+      wallet,
+    );
+    return s;
+  }
+}
+
+/** Serializable session state for persistence across page refreshes. */
+export interface SessionSnapshot {
+  sessionId: string;
+  bearer: string;
+  paymentInfo?: SessionPaymentInfo;
+  baseUrl: string;
 }
